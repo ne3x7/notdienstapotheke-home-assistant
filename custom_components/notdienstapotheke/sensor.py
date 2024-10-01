@@ -77,6 +77,8 @@ class PharmacySensor(SensorEntity):
         self.lon: Optional[str] = config.get("lon")
         self.radius: Optional[int] = config.get("radius", 5)
 
+        self.coordinator.async_add_listener(self.async_write_ha_state)
+
     @property
     def name(self):
         """Return the name of the sensor."""
@@ -105,10 +107,14 @@ class PharmacySensor(SensorEntity):
         """Fetch data from the API and update the sensor state."""
         _LOGGER.info(f"Updating sensor for PLZ/Ort: {self.plzort}, Date: {self.date}")
 
-        await self.coordinator.async_request_refresh()
+        data = await self.coordinator._async_update_data(
+            plzort=self.plzort,
+            street=self.street,
+            lat=self.lat,
+            lon=self.lon,
+            radius=self.radius
+        )
 
-        # Extract data from the coordinator's latest data
-        data = self.coordinator.data
         if data:
             self.pharmacies = data.get_data(
                 plzort=self.plzort,

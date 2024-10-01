@@ -85,10 +85,12 @@ class AponetDailyDataCoordinator(DataUpdateCoordinator):
         )
         self.api_client = api_client
 
-    async def _async_update_data(self):
-        """Fetch data from the API."""
+    async def _async_update_data(self, plzort, date=None, street=None, lat=None, lon=None, radius=5):
+        """Fetch data from the Aponet API."""
         try:
             # Fetch the data from the API (run the API call in a background thread)
-            return await self.hass.async_add_executor_job(self.api_client.get_data)
+            return await self.hass.async_add_executor_job(
+                self.api_client.get_data, plzort, date, street, lat, lon, radius
+            )
         except Exception as err:
-            raise UpdateFailed(f"Error fetching data: {err}")
+            raise UpdateFailed(f"Error fetching data from Aponet API: {err}")

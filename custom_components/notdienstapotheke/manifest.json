@@ -1,0 +1,16 @@
+{
+  "domain": "notdienstapotheke",
+  "name": "Notdienstapotheke",
+  "codeowners": ["@ne3x7"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/ne3x7/notdienstapotheke-home-assistant",
+  "homekit": {},
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/ne3x7/notdienstapotheke-home-assistant",
+  "requirements": ["requests"],
+  "ssdp": [],
+  "version": "0.0.1",
+  "zeroconf": []
+}

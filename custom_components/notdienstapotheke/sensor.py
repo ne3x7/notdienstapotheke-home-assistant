@@ -9,6 +9,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import PLATFORM_SCHEMA
 
 import homeassistant.helpers.config_validation as cv
 from .const import DOMAIN
@@ -16,23 +17,27 @@ from .aponet import Apotheke
 
 _LOGGER = logging.getLogger(__name__)
 
-# Define the configuration schema for the YAML
-PLATFORM_SCHEMA = vol.Schema({
-    vol.Required("addresses"): vol.All(
-        cv.ensure_list,  # Ensure the "pharmacies" is a list of dictionaries
-        [
-            vol.Schema({
-                vol.Required("name"): cv.string,
-                vol.Required("plzort"): cv.string,
-                vol.Optional("date"): cv.date,  # Optional, but must be a valid date if provided
-                vol.Optional("street"): cv.string,  # Optional street
-                vol.Optional("lat"): vol.Coerce(float),  # Optional latitude
-                vol.Optional("lon"): vol.Coerce(float),  # Optional longitude
-                vol.Optional("radius", default=5): vol.Coerce(int),  # Optional radius, default is 5
-            })
-        ]
-    ),
+CONF_NAME = "name"
+CONF_PLZORT = "plzort"
+CONF_STREET = "street"
+CONF_LAT = "lat"
+CONF_LON = "lon"
+CONF_RADIUS = "radius"
+CONF_ADDRESSES = "addresses"
+
+ADDRESS_SCHEMA = vol.Schema({
+    vol.Required(CONF_NAME): cv.string,
+    vol.Required(CONF_PLZORT): cv.string,
+    vol.Optional(CONF_STREET): cv.string,
+    vol.Optional(CONF_LAT): vol.Coerce(float),
+    vol.Optional(CONF_LON): vol.Coerce(float),
+    vol.Optional(CONF_RADIUS, default=5): cv.positive_int,
 })
+
+PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
+    vol.Required(CONF_ADDRESSES): vol.All(cv.ensure_list, [ADDRESS_SCHEMA]),
+})
+
 
 async def async_setup_platform(
     hass: HomeAssistant,
@@ -40,9 +45,10 @@ async def async_setup_platform(
     async_add_entities: AddEntitiesCallback,
     discovery_info: DiscoveryInfoType | None = None
 ) -> None:
+    coordinator = hass.data[DOMAIN]['coordinator']
     if "addresses" in config:
         for address in config["addresses"]:
-            async_add_entities([PharmacySensor(hass, address)])
+            async_add_entities([PharmacySensor(hass, address, coordinator)])
 
 
 async def async_setup_entry(
@@ -50,17 +56,19 @@ async def async_setup_entry(
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    async_add_entities([PharmacySensor(hass, config_entry.data)])
+    coordinator = hass.data[DOMAIN]['coordinator']
+    async_add_entities([PharmacySensor(hass, config_entry.data, coordinator)])
 
 
 class PharmacySensor(SensorEntity):
     """Representation of a Pharmacy Sensor."""
     pharmacies: List[Apotheke] = []
 
-    def __init__(self, hass, config):
+    def __init__(self, hass, config, coordinator):
         """Initialize the sensor."""
         self.hass: HomeAssistant = hass
         self.config = config
+        self.coordinator = coordinator
         self.sensor_name: str = config["name"]
         self.plzort: str = config["plzort"]
         self.date: Optional[str] = config.get("date")
@@ -97,11 +105,14 @@ class PharmacySensor(SensorEntity):
         """Fetch data from the API and update the sensor state."""
         _LOGGER.info(f"Updating sensor for PLZ/Ort: {self.plzort}, Date: {self.date}")
 
-        client = self.hass.data[DOMAIN].get("client")
-        try:
-            self.pharmacies = await self.hass.async_add_executor_job(
-                client.get_data, self.plzort, self.date, self.street, self.lat, self.lon, self.radius
-            )
+        await self.coordinator.async_request_refresh()
 
-        except Exception as e:
-            _LOGGER.error(f"Error fetching data for {self.plzort}: {e}")
+        # Extract data from the coordinator's latest data
+        data = self.coordinator.data
+        if data:
+            self.pharmacies = data.get_data()
+
+    async def async_added_to_hass(self):
+        """When entity is added to hass."""
+        # Ensure the coordinator updates when the sensor is added
+        self.async_on_remove(self.coordinator.async_add_listener(self.async_write_ha_state))

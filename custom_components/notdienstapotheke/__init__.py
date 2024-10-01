@@ -3,6 +3,7 @@ import logging
 from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.helpers.typing import ConfigType
 from homeassistant.const import CONF_API_KEY, CONF_URL, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -20,7 +21,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # base_url = entry.data[CONF_URL]
 
     # Initialize the API client
-    api_client = Aponet(base_url, api_key)
+    api_client = Aponet()
 
     # Set up the coordinator to fetch data once per day
     coordinator = AponetDailyDataCoordinator(hass, api_client)
@@ -47,11 +48,27 @@ async def config_entry_update_listener(hass: HomeAssistant, entry: ConfigEntry) 
     await hass.config_entries.async_reload(entry.entry_id)
 
 
-def setup(hass: HomeAssistant, config: dict) -> bool:
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the integration via YAML configuration."""
-    _LOGGER.info("Setting up integration via YAML configuration.")
-    # This can be used to process YAML-based configuration, but this example assumes
-    # you are focusing on config entry (UI) setup, so it does nothing.
+    _LOGGER.info("Setting up Notdienstapotheke integration via YAML")
+
+    # Initialize the API client
+    api_client = Aponet()
+
+    # Set up the coordinator to fetch data from the API (once per day)
+    coordinator = AponetDailyDataCoordinator(hass, api_client)
+
+    # Trigger the first update for initial data load
+    await coordinator.async_config_entry_first_refresh()
+
+    # Store the coordinator in hass.data
+    hass.data.setdefault(DOMAIN, {})['coordinator'] = coordinator
+
+    # Forward the setup to the sensor platform
+    hass.async_create_task(
+        hass.helpers.discovery.async_load_platform('sensor', DOMAIN, {}, config)
+    )
+
     return True
 
 

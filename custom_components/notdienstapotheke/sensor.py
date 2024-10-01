@@ -110,7 +110,13 @@ class PharmacySensor(SensorEntity):
         # Extract data from the coordinator's latest data
         data = self.coordinator.data
         if data:
-            self.pharmacies = data.get_data()
+            self.pharmacies = data.get_data(
+                plzort=self.plzort,
+                street=self.street,
+                lat=self.lat,
+                lon=self.lon,
+                radius=self.radius
+            )
 
     async def async_added_to_hass(self):
         """When entity is added to hass."""

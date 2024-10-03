@@ -27,7 +27,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     # Forward the setup to the sensor platform
     hass.async_create_task(
         async_load_platform(
-            Platform.SENSOR, DOMAIN, {}, config
+            hass, Platform.SENSOR, DOMAIN, {}, config
         )
     )
 

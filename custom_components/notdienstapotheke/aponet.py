@@ -77,7 +77,7 @@ class Aponet:
         """Fetch the dynamic token required for the second API call."""
         try:
             _LOGGER.info("Fetching token from API...")
-            r = requests.get("/_assets/vite/assets/Pharmacymap-DnwNJfmO.js")
+            r = requests.get(f"{API_ENDPOINT}/_assets/vite/assets/Pharmacymap-DnwNJfmO.js")
             r.raise_for_status()
             m = re.search(r"token:\"(?P<token>\w+)\"", r.text)
             if not m:

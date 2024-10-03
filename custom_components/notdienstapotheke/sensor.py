@@ -95,6 +95,8 @@ class PharmacySensor(SensorEntity):
 
         self._unsub = async_track_time_interval(hass, self.async_update, SCAN_INTERVAL)
 
+        hass.async_create_task(self.async_update())
+
     @property
     def name(self):
         """Return the name of the sensor."""
@@ -102,20 +104,22 @@ class PharmacySensor(SensorEntity):
 
     @property
     def state(self):
+        _LOGGER.debug(f"Current pharmacies: {self.pharmacies}")
         closest_pharmacy: Apotheke = self.get_closest_pharmacy()
         if closest_pharmacy:
-            return f"Closest open pharmacy {closest_pharmacy.name} in {int(closest_pharmacy.distance)} km"
+            return f"Closest open pharmacy {closest_pharmacy.name} in {int(round(float(closest_pharmacy.distance)))} km"
         return "N/A"
 
     @property
     def extra_state_attributes(self):
+        _LOGGER.debug(f"Current pharmacies: {self.pharmacies}")
         closest_pharmacy: Apotheke = self.get_closest_pharmacy()
         if closest_pharmacy:
             return closest_pharmacy.to_dict()
         return {"message": "No pharmacies found"}
 
     def get_closest_pharmacy(self):
-        if self.pharmacies and isinstance(self.pharmacies, list):
+        if self.pharmacies and isinstance(self.pharmacies, list) and len(self.pharmacies) > 0:
             return self.pharmacies[0]
         return None
 
@@ -126,6 +130,7 @@ class PharmacySensor(SensorEntity):
             self.pharmacies = await self.hass.async_add_executor_job(
                 self.api_client.get_data,
             )
+            _LOGGER.debug(f"Fetched pharmacies: {self.pharmacies}")
 
             self.async_write_ha_state()
 

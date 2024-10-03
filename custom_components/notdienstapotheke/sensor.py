@@ -46,10 +46,12 @@ async def async_setup_platform(
     async_add_entities: AddEntitiesCallback,
     discovery_info: DiscoveryInfoType | None = None
 ) -> None:
-    if DOMAIN in hass.data and "yaml_config" in hass.data[DOMAIN]:
-        addresses = hass.data[DOMAIN]["yaml_config"].get("addresses", [])
-        entities = []
-        for address in addresses:
+    if discovery_info is not None:
+        config = discovery_info
+
+    # Create and add entities from the YAML config
+    if "addresses" in config:
+        for address in config["addresses"]:
             api_client = Aponet(
                 plzort=address["plzort"],
                 date=address.get("date"),
@@ -58,8 +60,7 @@ async def async_setup_platform(
                 lon=address.get("lon"),
                 radius=address.get("radius", 5),
             )
-            entities.append(PharmacySensor(hass, address, api_client))
-        async_add_entities(entities)
+            async_add_entities([PharmacySensor(hass, address, api_client)])
 
 
 async def async_setup_entry(

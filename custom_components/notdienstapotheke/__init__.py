@@ -1,41 +1,50 @@
 """Notdienstapotheke integration."""
 import logging
-from datetime import timedelta
-
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.helpers.typing import ConfigType
-from homeassistant.const import CONF_API_KEY, CONF_URL, Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from .aponet import Aponet
-from .const import DOMAIN, SCAN_INTERVAL
+from homeassistant.const import Platform
 
 _LOGGER = logging.getLogger(__name__)
 
+DOMAIN = "notdienstapotheke"
 PLATFORMS = [Platform.SENSOR]
 
 
+async def async_setup(hass: HomeAssistant, config: dict) -> bool:
+    """Set up Notdienstapotheke from YAML configuration."""
+    _LOGGER.info("Setting up Notdienstapotheke from YAML configuration")
+
+    # Store the configuration in `hass.data` for use by platforms
+    if DOMAIN not in hass.data:
+        hass.data[DOMAIN] = {}
+
+    if DOMAIN in config:
+        hass.data[DOMAIN]["yaml_config"] = config[DOMAIN]
+
+    # Forward the setup to the sensor platform
+    hass.async_create_task(
+        hass.helpers.discovery.async_load_platform(
+            Platform.SENSOR, DOMAIN, {}, config
+        )
+    )
+
+    return True
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up the integration from a config entry (UI-based)."""
-    # api_key = entry.data[CONF_API_KEY]
-    # base_url = entry.data[CONF_URL]
+    """Set up Notdienstapotheke integration from a ConfigEntry (UI-based)."""
+    _LOGGER.info("Setting up Notdienstapotheke from ConfigEntry (UI-based)")
 
-    # Initialize the API client
-    api_client = Aponet()
+    # Store the ConfigEntry data in `hass.data` for use by platforms
+    if DOMAIN not in hass.data:
+        hass.data[DOMAIN] = {}
 
-    # Set up the coordinator to fetch data once per day
-    coordinator = AponetDailyDataCoordinator(hass, api_client)
+    hass.data[DOMAIN][entry.entry_id] = entry.data
 
-    # Store the coordinator for future use by platforms
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
-
-    # Trigger the first data fetch (this will load data when the integration is set up)
-    await coordinator.async_config_entry_first_refresh()
-
-    # Forward the setup to all platforms (defined in PLATFORMS)
+    # Forward setup to the sensor platform
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    # Listen for config entry updates
+    # Set up listener to handle config entry updates
     entry.async_on_unload(entry.add_update_listener(config_entry_update_listener))
 
     return True
@@ -48,49 +57,13 @@ async def config_entry_update_listener(hass: HomeAssistant, entry: ConfigEntry) 
     await hass.config_entries.async_reload(entry.entry_id)
 
 
-async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Set up the integration via YAML configuration."""
-    _LOGGER.info("Setting up Notdienstapotheke integration via YAML")
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Handle removal of a ConfigEntry (UI-based)."""
+    _LOGGER.info("Unloading Notdienstapotheke ConfigEntry")
 
-    # Initialize the API client
-    api_client = Aponet()
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
-    # Set up the coordinator to fetch data from the API (once per day)
-    coordinator = AponetDailyDataCoordinator(hass, api_client)
+    if unload_ok:
+        hass.data[DOMAIN].pop(entry.entry_id)
 
-    # Trigger the first update for initial data load
-    await coordinator.async_config_entry_first_refresh()
-
-    # Store the coordinator in hass.data
-    hass.data.setdefault(DOMAIN, {})['coordinator'] = coordinator
-
-    # Forward the setup to the sensor platform
-    hass.async_create_task(
-        hass.helpers.discovery.async_load_platform('sensor', DOMAIN, {}, config)
-    )
-
-    return True
-
-
-class AponetDailyDataCoordinator(DataUpdateCoordinator):
-    """Custom coordinator to fetch data from API once per day."""
-
-    def __init__(self, hass, api_client):
-        """Initialize the coordinator."""
-        super().__init__(
-            hass,
-            _LOGGER,
-            name="Aponet Daily Data",
-            update_interval=SCAN_INTERVAL,  # Fetch once per day
-        )
-        self.api_client = api_client
-
-    async def _async_update_data(self, plzort, date=None, street=None, lat=None, lon=None, radius=5):
-        """Fetch data from the Aponet API."""
-        try:
-            # Fetch the data from the API (run the API call in a background thread)
-            return await self.hass.async_add_executor_job(
-                self.api_client.get_data, plzort, date, street, lat, lon, radius
-            )
-        except Exception as err:
-            raise UpdateFailed(f"Error fetching data from Aponet API: {err}")
+    return unload_ok

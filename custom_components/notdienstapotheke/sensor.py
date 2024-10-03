@@ -12,8 +12,9 @@ from homeassistant.components.sensor import SensorEntity
 from homeassistant.components.sensor import PLATFORM_SCHEMA
 
 import homeassistant.helpers.config_validation as cv
-from .const import DOMAIN
-from .aponet import Apotheke
+from homeassistant.helpers.event import async_track_time_interval
+from .const import DOMAIN, SCAN_INTERVAL
+from .aponet import Apotheke, Aponet
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,10 +46,20 @@ async def async_setup_platform(
     async_add_entities: AddEntitiesCallback,
     discovery_info: DiscoveryInfoType | None = None
 ) -> None:
-    coordinator = hass.data[DOMAIN]['coordinator']
-    if "addresses" in config:
-        for address in config["addresses"]:
-            async_add_entities([PharmacySensor(hass, address, coordinator)])
+    if DOMAIN in hass.data and "yaml_config" in hass.data[DOMAIN]:
+        addresses = hass.data[DOMAIN]["yaml_config"].get("addresses", [])
+        entities = []
+        for address in addresses:
+            api_client = Aponet(
+                plzort=address["plzort"],
+                date=address.get("date"),
+                street=address.get("street"),
+                lat=address.get("lat"),
+                lon=address.get("lon"),
+                radius=address.get("radius", 5),
+            )
+            entities.append(PharmacySensor(hass, address, api_client))
+        async_add_entities(entities)
 
 
 async def async_setup_entry(
@@ -56,28 +67,32 @@ async def async_setup_entry(
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    coordinator = hass.data[DOMAIN]['coordinator']
-    async_add_entities([PharmacySensor(hass, config_entry.data, coordinator)])
+    address = config_entry.data
+    api_client = Aponet(
+        plzort=address["plzort"],
+        date=address.get("date"),
+        street=address.get("street"),
+        lat=address.get("lat"),
+        lon=address.get("lon"),
+        radius=address.get("radius", 5),
+    )
+    async_add_entities([PharmacySensor(hass, address, api_client)])
 
 
 class PharmacySensor(SensorEntity):
     """Representation of a Pharmacy Sensor."""
     pharmacies: List[Apotheke] = []
 
-    def __init__(self, hass, config, coordinator):
+    def __init__(self, hass, config, api_client):
         """Initialize the sensor."""
         self.hass: HomeAssistant = hass
         self.config = config
-        self.coordinator = coordinator
+        self.api_client = api_client
         self.sensor_name: str = config["name"]
-        self.plzort: str = config["plzort"]
-        self.date: Optional[str] = config.get("date")
-        self.street: Optional[str] = config.get("street")
-        self.lat: Optional[str] = config.get("lat")
-        self.lon: Optional[str] = config.get("lon")
-        self.radius: Optional[int] = config.get("radius", 5)
+        self.plzort = config["plzort"]
+        self.street: str = config.get("street")
 
-        self.coordinator.async_add_listener(self.async_write_ha_state)
+        self._unsub = async_track_time_interval(hass, self.async_update, SCAN_INTERVAL)
 
     @property
     def name(self):
@@ -103,28 +118,20 @@ class PharmacySensor(SensorEntity):
             return self.pharmacies[0]
         return None
 
-    async def async_update(self):
-        """Fetch data from the API and update the sensor state."""
-        _LOGGER.info(f"Updating sensor for PLZ/Ort: {self.plzort}, Date: {self.date}")
-
-        data = await self.coordinator._async_update_data(
-            plzort=self.plzort,
-            street=self.street,
-            lat=self.lat,
-            lon=self.lon,
-            radius=self.radius
-        )
-
-        if data:
-            self.pharmacies = data.get_data(
-                plzort=self.plzort,
-                street=self.street,
-                lat=self.lat,
-                lon=self.lon,
-                radius=self.radius
+    async def async_update(self, _=None):
+        """Fetch data from the Aponet API."""
+        try:
+            # Call the API with the sensor-specific parameters
+            self.pharmacies = await self.hass.async_add_executor_job(
+                self.api_client.get_data,
             )
 
-    async def async_added_to_hass(self):
-        """When entity is added to hass."""
-        # Ensure the coordinator updates when the sensor is added
-        self.async_on_remove(self.coordinator.async_add_listener(self.async_write_ha_state))
+            self.async_write_ha_state()
+
+        except Exception as err:
+            _LOGGER.error(f"Error updating {self.name}: {err}")
+
+    async def async_will_remove_from_hass(self):
+        """Cleanup when entity is removed."""
+        if self._unsub is not None:
+            self._unsub()

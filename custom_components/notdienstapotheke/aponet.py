@@ -64,6 +64,14 @@ class Apotheke:
 class Aponet:
     """Class to handle the API calls."""
 
+    def __init__(self, plzort: str, date: Optional[str], street: Optional[str], lat: Optional[float], lon: Optional[float], radius: Optional[int]=5):
+        self.plzort = plzort
+        self.date = date
+        self.street = street
+        self.lat = lat
+        self.lon = lon
+        self.radius = radius
+
     @staticmethod
     def get_token():
         """Fetch the dynamic token required for the second API call."""
@@ -81,7 +89,7 @@ class Aponet:
             _LOGGER.error(f"Error fetching token: {err}")
             raise
 
-    def get_data(self, plzort: str, date: Optional[str], street: Optional[str], lat: Optional[float], lon: Optional[float], radius: Optional[int]=5):
+    def get_data(self):
         """Fetch pharmacy data from the API."""
         try:
             # Get the token
@@ -94,12 +102,12 @@ class Aponet:
                 params={
                     "tx_aponetpharmacy_search[action]": "result",
                     "tx_aponetpharmacy_search[controller]": "Search",
-                    "tx_aponetpharmacy_search[search][plzort]": plzort,
-                    "tx_aponetpharmacy_search[search][date]": date,
-                    "tx_aponetpharmacy_search[search][street]": street,
-                    "tx_aponetpharmacy_search[search][radius]": str(radius),
-                    "tx_aponetpharmacy_search[search][lat]": str(lat),
-                    "tx_aponetpharmacy_search[search][lng]": str(lon),
+                    "tx_aponetpharmacy_search[search][plzort]": self.plzort,
+                    "tx_aponetpharmacy_search[search][date]": self.date,
+                    "tx_aponetpharmacy_search[search][street]": self.street,
+                    "tx_aponetpharmacy_search[search][radius]": str(self.radius),
+                    "tx_aponetpharmacy_search[search][lat]": str(self.lat),
+                    "tx_aponetpharmacy_search[search][lng]": str(self.lon),
                     "tx_aponetpharmacy_search[token]": token,
                     "type": "1981"
                 }

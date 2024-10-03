@@ -4,6 +4,8 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.const import Platform
 
+from homeassistant.helpers.discovery import async_load_platform
+
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -19,12 +21,13 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {}
 
-    hass.data.setdefault(DOMAIN, {})
+    if DOMAIN in config:
+        hass.data[DOMAIN]["yaml_config"] = config[DOMAIN]
 
     # Forward the setup to the sensor platform
     hass.async_create_task(
-        hass.helpers.entity_platform.async_load_platform(
-            Platform.SENSOR, DOMAIN, config[DOMAIN], hass.data
+        async_load_platform(
+            Platform.SENSOR, DOMAIN, {}, config
         )
     )
 

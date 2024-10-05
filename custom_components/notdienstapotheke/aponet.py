@@ -1,12 +1,16 @@
+"""API definition."""
+
+# pylint: disable=R0902,R0917
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Tuple, Optional
 
-import requests
-import re
-from datetime import datetime
 import logging
+from datetime import datetime
+import re
+import requests
 
 from .const import API_ENDPOINT
 
@@ -31,6 +35,7 @@ class Apotheke:
 
     @classmethod
     def from_source(cls, result: dict) -> "Apotheke":
+        """Parse JSON response from API."""
         return cls(
             name=result["name"],
             street=result["strasse"],
@@ -41,11 +46,16 @@ class Apotheke:
             phone=result["telefon"],
             fax=result["fax"],
             email=result["email"],
-            datetime_from=datetime.strptime(result["startdatum"] + " " + result["startzeit"], '%d.%m.%Y %H:%M'),
-            datetime_to=datetime.strptime(result["enddatum"] + " " + result["endzeit"], '%d.%m.%Y %H:%M'),
+            datetime_from=datetime.strptime(
+                result["startdatum"] + " " + result["startzeit"], "%d.%m.%Y %H:%M"
+            ),
+            datetime_to=datetime.strptime(
+                result["enddatum"] + " " + result["endzeit"], "%d.%m.%Y %H:%M"
+            ),
         )
 
     def to_dict(self) -> dict:
+        """Prepare a dictionary representation for use in Home Assistant."""
         return {
             "name": self.name,
             "street": self.street,
@@ -64,7 +74,15 @@ class Apotheke:
 class Aponet:
     """Class to handle the API calls."""
 
-    def __init__(self, plzort: str, date: Optional[str], street: Optional[str], lat: Optional[float], lon: Optional[float], radius: Optional[int]=5):
+    def __init__(
+        self,
+        plzort: str,
+        date: Optional[str],
+        street: Optional[str],
+        lat: Optional[float],
+        lon: Optional[float],
+        radius: Optional[int] = 5,
+    ):
         self.plzort = plzort
         self.date = date
         self.street = street
@@ -77,7 +95,10 @@ class Aponet:
         """Fetch the dynamic token required for the second API call."""
         try:
             _LOGGER.info("Fetching token from API...")
-            r = requests.get(f"{API_ENDPOINT}/_assets/vite/assets/Pharmacymap-DnwNJfmO.js")
+            r = requests.get(
+                f"{API_ENDPOINT}/_assets/vite/assets/Pharmacymap-DnwNJfmO.js",
+                timeout=10,
+            )
             r.raise_for_status()
             m = re.search(r"token:\"(?P<token>\w+)\"", r.text)
             if not m:
@@ -86,7 +107,7 @@ class Aponet:
             _LOGGER.info("Token fetched successfully.")
             return token
         except requests.RequestException as err:
-            _LOGGER.error(f"Error fetching token: {err}")
+            _LOGGER.error("Error fetching token: %s", err)
             raise
 
     def get_data(self):
@@ -109,23 +130,25 @@ class Aponet:
                     "tx_aponetpharmacy_search[search][lat]": str(self.lat),
                     "tx_aponetpharmacy_search[search][lng]": str(self.lon),
                     "tx_aponetpharmacy_search[token]": token,
-                    "type": "1981"
-                }
+                    "type": "1981",
+                },
+                timeout=10,
             )
             response.raise_for_status()
 
             data = response.json()
-            _LOGGER.debug(f"Response from API: {data}")
+            _LOGGER.debug("Response from API: %s", data)
 
             # Process the pharmacy data
             apotheken = []
-            for apotheke in data.get('results', {}).get('apotheken', {}).get('apotheke', []):
+            for apotheke in (
+                data.get("results", {}).get("apotheken", {}).get("apotheke", [])
+            ):
                 apotheken.append(Apotheke.from_source(apotheke))
 
-            _LOGGER.info(f"Fetched {len(apotheken)} pharmacies.")
+            _LOGGER.info("Fetched %d pharmacies.", len(apotheken))
             return apotheken
 
         except requests.RequestException as err:
-            _LOGGER.error(f"Error fetching pharmacy data: {err}")
+            _LOGGER.error("Error fetching pharmacy data: %s", err)
             raise
-

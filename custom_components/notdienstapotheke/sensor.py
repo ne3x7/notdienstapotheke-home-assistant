@@ -1,6 +1,10 @@
+"""Sensor platform."""
+
+# pylint: disable=W0239
+
 from __future__ import annotations
 import logging
-from typing import List, Optional
+from typing import List
 
 import voluptuous as vol
 
@@ -13,7 +17,7 @@ from homeassistant.components.sensor import PLATFORM_SCHEMA
 
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.event import async_track_time_interval
-from .const import DOMAIN, SCAN_INTERVAL
+from .const import SCAN_INTERVAL
 from .aponet import Apotheke, Aponet
 
 _LOGGER = logging.getLogger(__name__)
@@ -26,26 +30,31 @@ CONF_LON = "lon"
 CONF_RADIUS = "radius"
 CONF_ADDRESSES = "addresses"
 
-ADDRESS_SCHEMA = vol.Schema({
-    vol.Required(CONF_NAME): cv.string,
-    vol.Required(CONF_PLZORT): cv.string,
-    vol.Optional(CONF_STREET): cv.string,
-    vol.Optional(CONF_LAT): vol.Coerce(float),
-    vol.Optional(CONF_LON): vol.Coerce(float),
-    vol.Optional(CONF_RADIUS, default=5): cv.positive_int,
-})
+ADDRESS_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_NAME): cv.string,
+        vol.Required(CONF_PLZORT): cv.string,
+        vol.Optional(CONF_STREET): cv.string,
+        vol.Optional(CONF_LAT): vol.Coerce(float),
+        vol.Optional(CONF_LON): vol.Coerce(float),
+        vol.Optional(CONF_RADIUS, default=5): cv.positive_int,
+    }
+)
 
-PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
-    vol.Required(CONF_ADDRESSES): vol.All(cv.ensure_list, [ADDRESS_SCHEMA]),
-})
+PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
+    {
+        vol.Required(CONF_ADDRESSES): vol.All(cv.ensure_list, [ADDRESS_SCHEMA]),
+    }
+)
 
 
 async def async_setup_platform(
     hass: HomeAssistant,
     config: ConfigType,
     async_add_entities: AddEntitiesCallback,
-    discovery_info: DiscoveryInfoType | None = None
+    discovery_info: DiscoveryInfoType | None = None,
 ) -> None:
+    """Set up the pharmacy sensors from YAML configuration."""
     if discovery_info is not None:
         config = discovery_info
 
@@ -68,6 +77,7 @@ async def async_setup_entry(
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
+    """Set up the integration from a config entry."""
     address = config_entry.data
     api_client = Aponet(
         plzort=address["plzort"],
@@ -82,12 +92,12 @@ async def async_setup_entry(
 
 class PharmacySensor(SensorEntity):
     """Representation of a Pharmacy Sensor."""
+
     pharmacies: List[Apotheke] = []
 
     def __init__(self, hass, config, api_client):
         """Initialize the sensor."""
         self.hass: HomeAssistant = hass
-        self.config = config
         self.api_client = api_client
         self.sensor_name: str = config["name"]
         self.plzort = config["plzort"]
@@ -104,22 +114,30 @@ class PharmacySensor(SensorEntity):
 
     @property
     def state(self):
-        _LOGGER.debug(f"Current pharmacies: {self.pharmacies}")
+        _LOGGER.debug("Current pharmacies: %s", self.pharmacies)
         closest_pharmacy: Apotheke = self.get_closest_pharmacy()
         if closest_pharmacy:
-            return f"Closest open pharmacy {closest_pharmacy.name} in {int(round(float(closest_pharmacy.distance)))} km"
+            return (
+                f"Closest open pharmacy {closest_pharmacy.name}"
+                f"in {int(round(float(closest_pharmacy.distance)))} km"
+            )
         return "N/A"
 
     @property
     def extra_state_attributes(self):
-        _LOGGER.debug(f"Current pharmacies: {self.pharmacies}")
+        _LOGGER.debug("Current pharmacies: %s", self.pharmacies)
         closest_pharmacy: Apotheke = self.get_closest_pharmacy()
         if closest_pharmacy:
             return closest_pharmacy.to_dict()
         return {"message": "No pharmacies found"}
 
     def get_closest_pharmacy(self):
-        if self.pharmacies and isinstance(self.pharmacies, list) and len(self.pharmacies) > 0:
+        """Get the closest pharmacy, sorting is assumed."""
+        if (
+            self.pharmacies
+            and isinstance(self.pharmacies, list)
+            and len(self.pharmacies) > 0
+        ):
             return self.pharmacies[0]
         return None
 
@@ -130,12 +148,12 @@ class PharmacySensor(SensorEntity):
             self.pharmacies = await self.hass.async_add_executor_job(
                 self.api_client.get_data,
             )
-            _LOGGER.debug(f"Fetched pharmacies: {self.pharmacies}")
+            _LOGGER.debug("Fetched pharmacies: %s", self.pharmacies)
 
             self.async_write_ha_state()
 
         except Exception as err:
-            _LOGGER.error(f"Error updating {self.name}: {err}")
+            _LOGGER.error("Error updating %s: %s", self.name, err)
 
     async def async_will_remove_from_hass(self):
         """Cleanup when entity is removed."""

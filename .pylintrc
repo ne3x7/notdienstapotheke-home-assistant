@@ -1,0 +1,11 @@
+[MESSAGES CONTROL]
+disable=
+	too-many-arguments,
+	line-too-long
+
+[REPORTS]
+reports=no
+output-format=parseable
+
+[MASTER]
+ignore=venv,build

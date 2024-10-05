@@ -1,4 +1,5 @@
 """Notdienstapotheke integration."""
+
 import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -26,9 +27,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
     # Forward the setup to the sensor platform
     hass.async_create_task(
-        async_load_platform(
-            hass, Platform.SENSOR, DOMAIN, {}, config
-        )
+        async_load_platform(hass, Platform.SENSOR, DOMAIN, {}, config)
     )
 
     return True

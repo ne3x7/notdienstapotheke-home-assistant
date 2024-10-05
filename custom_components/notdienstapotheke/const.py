@@ -1,3 +1,5 @@
+"""Constants."""
+
 from datetime import timedelta
 
 DOMAIN = "notdienstapotheke"

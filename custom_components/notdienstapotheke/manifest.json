@@ -9,7 +9,7 @@
   "integration_type": "service",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/ne3x7/notdienstapotheke-home-assistant",
-  "requirements": ["requests"],
+  "requirements": ["requests", "selenium", "selenium-wire", "blinker==1.7.0"],
   "ssdp": [],
   "version": "0.0.1",
   "zeroconf": []

@@ -11,6 +11,9 @@ import logging
 from datetime import datetime
 import re
 import requests
+import gzip
+from seleniumwire import webdriver
+from selenium.webdriver import ChromeOptions
 
 from .const import API_ENDPOINT
 
@@ -95,12 +98,26 @@ class Aponet:
         """Fetch the dynamic token required for the second API call."""
         try:
             _LOGGER.info("Fetching token from API...")
-            r = requests.get(
-                f"{API_ENDPOINT}/_assets/vite/assets/Pharmacymap-DnwNJfmO.js",
-                timeout=10,
-            )
-            r.raise_for_status()
-            m = re.search(r"token:\"(?P<token>\w+)\"", r.text)
+            options = ChromeOptions()
+            options.add_argument("--headless=new")
+            driver = webdriver.Chrome(options=options)
+            driver.get(API_ENDPOINT)
+            driver.implicitly_wait(10)
+
+            script_content = None
+            for request in driver.requests:
+                if request.response:
+                    if re.search(r"Pharmacy.*\.js", request.url):
+                        script_content = gzip.decompress(request.response.body).decode(
+                            "utf-8"
+                        )
+                        break
+
+            driver.quit()
+            if not script_content:
+                raise ValueError("No script found in requests.")
+
+            m = re.search(r"token:\"(?P<token>\w+)\"", script_content)
             if not m:
                 raise ValueError("Token not found in response.")
             token = m.group("token")
@@ -119,7 +136,7 @@ class Aponet:
             # Make the second API request using the token and parameters
             _LOGGER.info("Fetching pharmacy data from API...")
             response = requests.get(
-                url=f"{API_ENDPOINT}/apotheke/notdienstsuche",
+                url=API_ENDPOINT,
                 params={
                     "tx_aponetpharmacy_search[action]": "result",
                     "tx_aponetpharmacy_search[controller]": "Search",

@@ -5,13 +5,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from json import JSONDecodeError
 from typing import Tuple, Optional
 
 import logging
 from datetime import datetime
 import re
-import requests
 import gzip
+import requests
 from seleniumwire import webdriver
 from selenium.webdriver import ChromeOptions
 
@@ -80,10 +81,10 @@ class Aponet:
     def __init__(
         self,
         plzort: str,
-        date: Optional[str],
-        street: Optional[str],
-        lat: Optional[float],
-        lon: Optional[float],
+        date: Optional[str] = None,
+        street: Optional[str] = None,
+        lat: Optional[float] = None,
+        lon: Optional[float] = None,
         radius: Optional[int] = 5,
     ):
         self.plzort = plzort
@@ -127,8 +128,8 @@ class Aponet:
             _LOGGER.error("Error fetching token: %s", err)
             raise
 
-    def get_data(self):
-        """Fetch pharmacy data from the API."""
+    def call_api(self):
+        """Make a request to the API."""
         try:
             # Get the token
             token = self.get_token()
@@ -153,6 +154,17 @@ class Aponet:
             )
             response.raise_for_status()
 
+            return response
+
+        except requests.RequestException as err:
+            _LOGGER.error("Error fetching pharmacy data: %s", err)
+            raise
+
+    def get_data(self):
+        """Parse response from the API."""
+        try:
+            response = self.call_api()
+
             data = response.json()
             _LOGGER.debug("Response from API: %s", data)
 
@@ -166,6 +178,6 @@ class Aponet:
             _LOGGER.info("Fetched %d pharmacies.", len(apotheken))
             return apotheken
 
-        except requests.RequestException as err:
-            _LOGGER.error("Error fetching pharmacy data: %s", err)
+        except JSONDecodeError as err:
+            _LOGGER.error("Error decoding pharmacy data: %s", err)
             raise

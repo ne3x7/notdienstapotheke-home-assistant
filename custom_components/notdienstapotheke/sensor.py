@@ -17,29 +17,11 @@ from homeassistant.components.sensor import PLATFORM_SCHEMA
 
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.event import async_track_time_interval
-from .const import SCAN_INTERVAL
+from .const import SCAN_INTERVAL, CONF_ADDRESSES
 from .aponet import Apotheke, Aponet
+from .schemas import ADDRESS_SCHEMA
 
 _LOGGER = logging.getLogger(__name__)
-
-CONF_NAME = "name"
-CONF_PLZORT = "plzort"
-CONF_STREET = "street"
-CONF_LAT = "lat"
-CONF_LON = "lon"
-CONF_RADIUS = "radius"
-CONF_ADDRESSES = "addresses"
-
-ADDRESS_SCHEMA = vol.Schema(
-    {
-        vol.Required(CONF_NAME): cv.string,
-        vol.Required(CONF_PLZORT): cv.string,
-        vol.Optional(CONF_STREET): cv.string,
-        vol.Optional(CONF_LAT): vol.Coerce(float),
-        vol.Optional(CONF_LON): vol.Coerce(float),
-        vol.Optional(CONF_RADIUS, default=5): cv.positive_int,
-    }
-)
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
